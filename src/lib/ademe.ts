@@ -45,15 +45,24 @@ export async function fetchNewDPEs(alert: Alert): Promise<DPEResult[]> {
   ]
   params.set('select', fields.join(','))
 
-  // Construire les filtres
-  const queryParts: string[] = []
+  // Construire les filtres avec qs (query string Lucene)
+  const qsParts: string[] = []
 
-  // Filtre villes (insensible à la casse - l'API semble accepter les deux)
+  // Filtre date - récupérer uniquement les DPE depuis le dernier check
+  const dateFrom = alert.last_dpe_date
+    ? alert.last_dpe_date
+    : getDateDaysAgo(7)
+  qsParts.push(`date_derniere_modification_dpe:[${dateFrom} TO *]`)
+
+  // Filtre par département (extrait du format "Ville|Dept")
   if (alert.villes.length > 0) {
-    const villeFilter = alert.villes
-      .map(v => `nom_commune_ban:"${v}"`)
-      .join(' OR ')
-    queryParts.push(`(${villeFilter})`)
+    const depts = extractDepartements(alert.villes)
+    if (depts.length > 0) {
+      const deptFilter = depts
+        .map(d => `code_postal_ban:${d}*`)
+        .join(' OR ')
+      qsParts.push(`(${deptFilter})`)
+    }
   }
 
   // Filtre étiquettes DPE
@@ -61,7 +70,7 @@ export async function fetchNewDPEs(alert: Alert): Promise<DPEResult[]> {
     const dpeFilter = alert.etiquettes_dpe
       .map(e => `etiquette_dpe:"${e}"`)
       .join(' OR ')
-    queryParts.push(`(${dpeFilter})`)
+    qsParts.push(`(${dpeFilter})`)
   }
 
   // Filtre étiquettes GES
@@ -69,7 +78,7 @@ export async function fetchNewDPEs(alert: Alert): Promise<DPEResult[]> {
     const gesFilter = alert.etiquettes_ges
       .map(e => `etiquette_ges:"${e}"`)
       .join(' OR ')
-    queryParts.push(`(${gesFilter})`)
+    qsParts.push(`(${gesFilter})`)
   }
 
   // Filtre type de bâtiment (normaliser en minuscules)
@@ -77,21 +86,10 @@ export async function fetchNewDPEs(alert: Alert): Promise<DPEResult[]> {
     const typeFilter = alert.types_batiment
       .map(t => `type_batiment:"${t.toLowerCase()}"`)
       .join(' OR ')
-    queryParts.push(`(${typeFilter})`)
+    qsParts.push(`(${typeFilter})`)
   }
 
-  if (queryParts.length > 0) {
-    params.set('q', queryParts.join(' AND '))
-    params.set('q_mode', 'simple')
-  }
-
-  // Filtre date - récupérer uniquement les DPE depuis le dernier check
-  // Premier scan : 7 derniers jours, ensuite depuis le dernier DPE trouvé
-  const dateFrom = alert.last_dpe_date
-    ? alert.last_dpe_date
-    : getDateDaysAgo(7)
-
-  params.set('qs', `date_derniere_modification_dpe:[${dateFrom} TO *]`)
+  params.set('qs', qsParts.join(' AND '))
   params.set('sort', '-date_derniere_modification_dpe')
 
   const url = `${ADEME_API_URL}?${params.toString()}`
@@ -156,6 +154,18 @@ function getDateDaysAgo(days: number): string {
   return date.toISOString().split('T')[0]
 }
 
+// Extraire les départements uniques du format "Ville|Dept"
+function extractDepartements(villes: string[]): string[] {
+  const depts = new Set<string>()
+  for (const v of villes) {
+    const parts = v.split('|')
+    if (parts[1]) {
+      depts.add(parts[1])
+    }
+  }
+  return Array.from(depts)
+}
+
 // Obtenir la date du DPE le plus récent dans une liste
 export function getLatestDPEDate(dpes: DPEResult[]): string | null {
   if (dpes.length === 0) return null
@@ -163,4 +173,125 @@ export function getLatestDPEDate(dpes: DPEResult[]): string | null {
   return dpes.reduce((latest, dpe) => {
     return dpe.date_reception > latest ? dpe.date_reception : latest
   }, dpes[0].date_reception)
+}
+
+// Récupérer la dernière date de mise à jour de la base ADEME
+export async function getLatestADEMEUpdateDate(): Promise<string | null> {
+  const params = new URLSearchParams()
+  params.set('size', '1')
+  params.set('select', 'date_derniere_modification_dpe')
+  params.set('sort', '-date_derniere_modification_dpe')
+
+  const url = `${ADEME_API_URL}?${params.toString()}`
+
+  try {
+    const response = await fetch(url)
+    if (!response.ok) return null
+
+    const data: ADEMEResponse = await response.json()
+    if (data.results && data.results.length > 0) {
+      return data.results[0].date_derniere_modification_dpe
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
+// Récupérer les DPE pour une date spécifique (utilisé pour les tests)
+export async function fetchDPEsForDate(alert: Alert, date: string): Promise<DPEResult[]> {
+  const params = new URLSearchParams()
+  params.set('size', '100')
+
+  const fields = [
+    'numero_dpe',
+    'adresse_ban',
+    'adresse_brut',
+    'nom_commune_ban',
+    'code_postal_ban',
+    'surface_habitable_logement',
+    'etiquette_dpe',
+    'etiquette_ges',
+    'type_batiment',
+    'date_derniere_modification_dpe',
+    'conso_5_usages_par_m2_ep',
+    'emission_ges_5_usages'
+  ]
+  params.set('select', fields.join(','))
+
+  // Construire les filtres avec qs (query string Lucene)
+  const qsParts: string[] = []
+
+  // Filtre sur la date exacte
+  qsParts.push(`date_derniere_modification_dpe:${date}`)
+
+  // Filtre par département (extrait du format "Ville|Dept")
+  if (alert.villes.length > 0) {
+    const depts = extractDepartements(alert.villes)
+    if (depts.length > 0) {
+      const deptFilter = depts
+        .map(d => `code_postal_ban:${d}*`)
+        .join(' OR ')
+      qsParts.push(`(${deptFilter})`)
+    }
+  }
+
+  // Filtre étiquettes DPE
+  if (alert.etiquettes_dpe.length > 0) {
+    const dpeFilter = alert.etiquettes_dpe
+      .map(e => `etiquette_dpe:"${e}"`)
+      .join(' OR ')
+    qsParts.push(`(${dpeFilter})`)
+  }
+
+  // Filtre étiquettes GES
+  if (alert.etiquettes_ges.length > 0) {
+    const gesFilter = alert.etiquettes_ges
+      .map(e => `etiquette_ges:"${e}"`)
+      .join(' OR ')
+    qsParts.push(`(${gesFilter})`)
+  }
+
+  // Filtre type de bâtiment
+  if (alert.types_batiment.length > 0) {
+    const typeFilter = alert.types_batiment
+      .map(t => `type_batiment:"${t.toLowerCase()}"`)
+      .join(' OR ')
+    qsParts.push(`(${typeFilter})`)
+  }
+
+  params.set('qs', qsParts.join(' AND '))
+  params.set('sort', '-date_derniere_modification_dpe')
+
+  const url = `${ADEME_API_URL}?${params.toString()}`
+
+  console.log('  [ADEME] Test URL:', url)
+  console.log('  [ADEME] Date filter:', date)
+
+  try {
+    const response = await fetch(url)
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('  [ADEME] Error response:', errorText)
+      throw new Error(`Erreur API ADEME: ${response.status}`)
+    }
+
+    const data: ADEMEResponse = await response.json()
+    console.log('  [ADEME] Total results:', data.total)
+
+    let results = data.results.map(transformResult)
+
+    if (alert.surface_min !== null) {
+      results = results.filter(r => r.surface >= alert.surface_min!)
+    }
+    if (alert.surface_max !== null) {
+      results = results.filter(r => r.surface <= alert.surface_max!)
+    }
+
+    return results
+  } catch (error) {
+    console.error('Erreur fetchDPEsForDate:', error)
+    throw error
+  }
 }

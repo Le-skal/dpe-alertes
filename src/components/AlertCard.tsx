@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Alert, DPEResult } from '@/lib/types'
+import { formatCityDisplay } from './CityAutocomplete'
 
 interface AlertCardProps {
   alert: Alert
@@ -141,7 +142,7 @@ export function AlertCard({ alert, onEdit, onDelete, onToggle }: AlertCardProps)
         <div>
           <p className="label-md mb-1.5">Localisation</p>
           <p className="body-md text-[var(--on-surface)]">
-            {alert.villes.join(', ')}
+            {alert.villes.map(v => formatCityDisplay(v)).join(', ')}
           </p>
         </div>
 
@@ -163,7 +164,7 @@ export function AlertCard({ alert, onEdit, onDelete, onToggle }: AlertCardProps)
               <div>
                 <p className="label-md mb-1.5">DPE</p>
                 <div className="flex gap-1">
-                  {alert.etiquettes_dpe.map((e) => (
+                  {[...alert.etiquettes_dpe].sort().map((e) => (
                     <span
                       key={e}
                       className={`${ETIQUETTE_COLORS[e].bg} ${ETIQUETTE_COLORS[e].text} w-7 h-7 rounded-md flex items-center justify-center text-xs font-bold`}
@@ -178,7 +179,7 @@ export function AlertCard({ alert, onEdit, onDelete, onToggle }: AlertCardProps)
               <div>
                 <p className="label-md mb-1.5">GES</p>
                 <div className="flex gap-1">
-                  {alert.etiquettes_ges.map((e) => (
+                  {[...alert.etiquettes_ges].sort().map((e) => (
                     <span
                       key={e}
                       className={`${ETIQUETTE_COLORS[e].bg} ${ETIQUETTE_COLORS[e].text} w-7 h-7 rounded-md flex items-center justify-center text-xs font-bold`}

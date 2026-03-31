@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Alert, AlertFormData } from '@/lib/types'
-import { CityAutocomplete } from './CityAutocomplete'
+import { CityAutocomplete, formatCityDisplay } from './CityAutocomplete'
 
 interface AlertFormProps {
   alert: Alert | null
@@ -208,7 +208,7 @@ export function AlertForm({ alert: editingAlert, onClose }: AlertFormProps) {
                       key={ville}
                       className="inline-flex items-center gap-2 bg-[var(--secondary-fixed)] text-[var(--secondary)] px-3 py-1.5 rounded-full text-sm"
                     >
-                      {ville}
+                      {formatCityDisplay(ville)}
                       <button
                         type="button"
                         onClick={() => removeVille(ville)}

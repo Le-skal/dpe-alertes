@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getServiceClient } from '@/lib/supabase'
-import { fetchNewDPEs } from '@/lib/ademe'
-import { Alert } from '@/lib/types'
+import { fetchDPEsForDate, getLatestADEMEUpdateDate } from '@/lib/ademe'
 
 export async function POST(
   request: Request,
@@ -25,22 +24,37 @@ export async function POST(
       )
     }
 
-    // Créer une copie de l'alerte sans last_dpe_date pour avoir les 7 derniers jours
-    const testAlert: Alert = {
-      ...alert,
-      last_dpe_date: null,
+    // Récupérer la dernière date de mise à jour de la base ADEME
+    const latestDate = await getLatestADEMEUpdateDate()
+
+    if (!latestDate) {
+      return NextResponse.json({
+        success: false,
+        count: 0,
+        dpes: [],
+        message: 'Impossible de récupérer la date de dernière mise à jour ADEME',
+      })
     }
 
-    // Récupérer les DPE
-    const dpes = await fetchNewDPEs(testAlert)
+    // Récupérer les DPE pour cette date
+    const dpes = await fetchDPEsForDate(alert, latestDate)
+
+    // Formater la date pour l'affichage
+    const dateFormatted = new Date(latestDate).toLocaleDateString('fr-FR', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
+    })
 
     return NextResponse.json({
       success: true,
       count: dpes.length,
       dpes: dpes.slice(0, 10), // Limiter à 10 résultats pour la prévisualisation
+      latestDate,
       message: dpes.length > 0
-        ? `${dpes.length} DPE trouvé${dpes.length > 1 ? 's' : ''} dans les 7 derniers jours`
-        : 'Aucun DPE trouvé avec ces critères dans les 7 derniers jours',
+        ? `${dpes.length} DPE trouvé${dpes.length > 1 ? 's' : ''} le ${dateFormatted}`
+        : `Aucun DPE trouvé avec ces critères le ${dateFormatted}`,
     })
   } catch (error) {
     console.error('Test alert error:', error)

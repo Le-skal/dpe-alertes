@@ -8,8 +8,20 @@ interface City {
 }
 
 interface CityAutocompleteProps {
-  onSelect: (city: string) => void
-  selectedCities: string[]
+  onSelect: (cityWithDept: string) => void  // Format: "Lyon|69"
+  selectedCities: string[]  // Format: ["Lyon|69", "Paris|75"]
+}
+
+// Helper pour parser le format "Ville|Dept"
+export function parseCityDept(value: string): { nom: string; dept: string } {
+  const parts = value.split('|')
+  return { nom: parts[0], dept: parts[1] || '' }
+}
+
+// Helper pour formater l'affichage
+export function formatCityDisplay(value: string): string {
+  const { nom, dept } = parseCityDept(value)
+  return dept ? `${nom} (${dept})` : nom
 }
 
 export function CityAutocomplete({ onSelect, selectedCities }: CityAutocompleteProps) {
@@ -33,14 +45,57 @@ export function CityAutocomplete({ onSelect, selectedCities }: CityAutocompleteP
 
     const fetchCities = async () => {
       try {
-        const res = await fetch(
-          `https://geo.api.gouv.fr/communes?nom=${encodeURIComponent(query)}&fields=nom,codesPostaux&boost=population&limit=8`,
-          { signal: controller.signal }
-        )
-        const data: City[] = await res.json()
-        // Filter out already selected cities
+        const trimmedQuery = query.trim()
+
+        // Détecter si c'est un code postal (5 chiffres)
+        const isPostalCode = /^\d{5}$/.test(trimmedQuery)
+        // Détecter si c'est un numéro de département (2 ou 3 chiffres, ou 2A/2B pour la Corse)
+        const isDeptSearch = /^(\d{2,3}|2[aAbB])$/.test(trimmedQuery)
+
+        let data: City[] = []
+
+        if (isPostalCode) {
+          // Recherche par code postal exact
+          const res = await fetch(
+            `https://geo.api.gouv.fr/communes?codePostal=${trimmedQuery}&fields=nom,codesPostaux`,
+            { signal: controller.signal }
+          )
+          if (res.ok) {
+            data = await res.json()
+          }
+        } else if (isDeptSearch) {
+          // Recherche par département - récupérer toutes les communes
+          const dept = trimmedQuery.toUpperCase()
+          const res = await fetch(
+            `https://geo.api.gouv.fr/departements/${dept}/communes?fields=nom,codesPostaux`,
+            { signal: controller.signal }
+          )
+          if (res.ok) {
+            data = await res.json()
+            // Trier par le plus petit code postal de chaque commune
+            data = data
+              .map(city => ({
+                ...city,
+                minCP: Math.min(...city.codesPostaux.map(cp => parseInt(cp) || 99999))
+              }))
+              .sort((a, b) => (a as City & { minCP: number }).minCP - (b as City & { minCP: number }).minCP)
+              .slice(0, 20)
+          }
+        } else {
+          // Recherche par nom de ville
+          const res = await fetch(
+            `https://geo.api.gouv.fr/communes?nom=${encodeURIComponent(trimmedQuery)}&fields=nom,codesPostaux&boost=population&limit=8`,
+            { signal: controller.signal }
+          )
+          if (res.ok) {
+            data = await res.json()
+          }
+        }
+
+        // Filter out already selected cities (check by city name)
+        const selectedNames = selectedCities.map(c => parseCityDept(c).nom)
         const filtered = data.filter(
-          (city) => !selectedCities.includes(city.nom)
+          (city) => !selectedNames.includes(city.nom)
         )
         setSuggestions(filtered)
         setIsOpen(filtered.length > 0)
@@ -75,7 +130,11 @@ export function CityAutocomplete({ onSelect, selectedCities }: CityAutocompleteP
   }, [])
 
   const handleSelect = (city: City) => {
-    onSelect(city.nom)
+    // Extraire le département (2 premiers chiffres du code postal)
+    const codePostal = city.codesPostaux[0] || ''
+    const dept = codePostal.substring(0, 2)
+    // Stocker en format "Ville|Dept"
+    onSelect(`${city.nom}|${dept}`)
     setQuery('')
     setSuggestions([])
     setIsOpen(false)

@@ -30,6 +30,11 @@ export async function sendAlertEmail(
   })
 }
 
+function generateGoogleMapsUrl(dpe: DPEResult): string {
+  const address = `${dpe.adresse} ${dpe.code_postal} ${dpe.ville}`
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`
+}
+
 function generateEmailHTML(alertName: string, dpes: DPEResult[]): string {
   const dpeCards = dpes
     .map(
@@ -38,8 +43,10 @@ function generateEmailHTML(alertName: string, dpes: DPEResult[]): string {
         <table cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-bottom: 16px;">
           <tr>
             <td style="vertical-align: top;">
-              <h3 style="margin: 0 0 4px; font-size: 16px; font-weight: 600; color: #191c21;">${dpe.adresse}</h3>
-              <p style="margin: 0; font-size: 14px; color: #424752;">${dpe.code_postal} ${dpe.ville}</p>
+              <a href="${generateGoogleMapsUrl(dpe)}" style="text-decoration: none; color: inherit;" target="_blank">
+                <h3 style="margin: 0 0 4px; font-size: 16px; font-weight: 600; color: #00488d; text-decoration: underline;">${dpe.adresse}</h3>
+                <p style="margin: 0; font-size: 14px; color: #424752;">${dpe.code_postal} ${dpe.ville} 📍</p>
+              </a>
             </td>
             <td style="vertical-align: top; text-align: right; padding-left: 24px; white-space: nowrap;">
               <span style="display: inline-block; background: ${DPE_COLORS[dpe.etiquette_dpe]?.bg || '#ccc'}; color: ${DPE_COLORS[dpe.etiquette_dpe]?.text || '#000'}; padding: 6px 12px; border-radius: 8px; font-weight: 700; font-size: 14px; margin-right: 8px;">
