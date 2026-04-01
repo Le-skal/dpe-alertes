@@ -1,17 +1,30 @@
 import { NextResponse } from 'next/server'
-import { getServiceClient } from '@/lib/supabase'
+import { createClient } from '@/lib/supabase-server'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
-  const supabase = getServiceClient()
+  const supabase = await createClient()
+
+  // Get current user
+  const { data: { user } } = await supabase.auth.getUser()
 
   try {
-    const { data: history, error } = await supabase
+    let query = supabase
       .from('email_history')
       .select('*')
       .order('sent_at', { ascending: false })
       .limit(50)
+
+    if (user) {
+      // Logged in: show ONLY user's history
+      query = query.eq('user_id', user.id)
+    } else {
+      // Guest: show only shared history
+      query = query.is('user_id', null)
+    }
+
+    const { data: history, error } = await query
 
     if (error) {
       throw new Error(error.message)

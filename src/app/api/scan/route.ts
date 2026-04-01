@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getServiceClient } from '@/lib/supabase'
+import { createClient } from '@/lib/supabase-server'
 import { fetchNewDPEs, getLatestDPEDate } from '@/lib/ademe'
 import { sendAlertEmail } from '@/lib/resend'
 import { Alert } from '@/lib/types'
@@ -16,7 +16,10 @@ interface AlertLog {
 }
 
 export async function POST() {
-  const supabase = getServiceClient()
+  const supabase = await createClient()
+
+  // Get current user
+  const { data: { user } } = await supabase.auth.getUser()
 
   const report = {
     processed: 0,
@@ -30,11 +33,21 @@ export async function POST() {
   console.log('Time:', new Date().toISOString())
 
   try {
-    // Récupérer toutes les alertes actives
-    const { data: alerts, error } = await supabase
+    // Récupérer les alertes actives (filtrées par utilisateur)
+    let query = supabase
       .from('alerts')
       .select('*')
       .eq('active', true)
+
+    if (user) {
+      // Logged in: scan ONLY user's alerts
+      query = query.eq('user_id', user.id)
+    } else {
+      // Guest: scan only shared alerts
+      query = query.is('user_id', null)
+    }
+
+    const { data: alerts, error } = await query
 
     if (error) {
       console.error('Supabase error:', error)
@@ -109,6 +122,7 @@ export async function POST() {
             recipients: alert.emails,
             dpe_count: dpes.length,
             dpe_summary: dpeSummary,
+            user_id: alert.user_id,
           })
           console.log(`  => Email history recorded`)
 

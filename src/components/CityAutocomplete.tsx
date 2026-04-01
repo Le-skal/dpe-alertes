@@ -8,8 +8,8 @@ interface City {
 }
 
 interface CityAutocompleteProps {
-  onSelect: (cityWithDept: string) => void  // Format: "Lyon|69"
-  selectedCities: string[]  // Format: ["Lyon|69", "Paris|75"]
+  onSelect: (cityWithCP: string) => void  // Format: "Lyon|69001"
+  selectedCities: string[]  // Format: ["Lyon|69001", "Paris|75001"]
 }
 
 // Helper pour parser le format "Ville|Dept"
@@ -130,11 +130,9 @@ export function CityAutocomplete({ onSelect, selectedCities }: CityAutocompleteP
   }, [])
 
   const handleSelect = (city: City) => {
-    // Extraire le département (2 premiers chiffres du code postal)
+    // Stocker le code postal complet en format "Ville|CodePostal"
     const codePostal = city.codesPostaux[0] || ''
-    const dept = codePostal.substring(0, 2)
-    // Stocker en format "Ville|Dept"
-    onSelect(`${city.nom}|${dept}`)
+    onSelect(`${city.nom}|${codePostal}`)
     setQuery('')
     setSuggestions([])
     setIsOpen(false)

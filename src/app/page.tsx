@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { AlertCard } from '@/components/AlertCard'
 import { AlertForm } from '@/components/AlertForm'
+import { AuthButton } from '@/components/AuthButton'
 import { Alert, EmailHistory } from '@/lib/types'
 
 type Tab = 'dashboard' | 'active' | 'archived' | 'history' | 'stats'
@@ -492,6 +493,11 @@ export default function Home() {
           </ul>
         </nav>
 
+        {/* Auth */}
+        <div className="p-4 border-t border-[var(--surface-container-high)]">
+          <AuthButton />
+        </div>
+
         {/* Bottom */}
         <div className="p-4 space-y-3">
           <div className="p-4 bg-[var(--surface-container)] rounded-xl">
@@ -574,6 +580,7 @@ export default function Home() {
               {activeTab === 'stats' && 'Vue d\'ensemble de vos alertes'}
             </p>
           </div>
+          <div className="flex items-center gap-4">
           <button
             onClick={handleCreate}
             className="btn-primary-gradient text-[var(--on-primary)] px-6 py-3 rounded-xl font-medium flex items-center gap-2 transition-all hover:scale-[1.02] active:scale-[0.98]"
@@ -583,6 +590,7 @@ export default function Home() {
             </svg>
             Nouvelle alerte
           </button>
+          </div>
         </header>
 
         {/* Content */}

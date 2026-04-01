@@ -88,6 +88,25 @@ export async function GET(request: NextRequest) {
           await sendAlertEmail(alert.emails, alert.name, dpes)
           report.emails_sent++
 
+          // Enregistrer dans l'historique
+          const dpeSummary = dpes.slice(0, 20).map(dpe => ({
+            numero_dpe: dpe.numero_dpe,
+            adresse: dpe.adresse,
+            ville: dpe.ville,
+            etiquette_dpe: dpe.etiquette_dpe,
+            etiquette_ges: dpe.etiquette_ges,
+            surface: dpe.surface,
+          }))
+
+          await supabase.from('email_history').insert({
+            alert_id: alert.id,
+            alert_name: alert.name,
+            recipients: alert.emails,
+            dpe_count: dpes.length,
+            dpe_summary: dpeSummary,
+            user_id: alert.user_id,
+          })
+
           // Mettre à jour le curseur
           const latestDate = getLatestDPEDate(dpes)
           await supabase

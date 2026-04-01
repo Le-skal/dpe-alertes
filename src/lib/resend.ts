@@ -35,17 +35,38 @@ function generateGoogleMapsUrl(dpe: DPEResult): string {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`
 }
 
+function formatBoolean(value: boolean | null): string {
+  if (value === null) return '-'
+  return value ? 'Oui' : 'Non'
+}
+
 function generateEmailHTML(alertName: string, dpes: DPEResult[]): string {
   const dpeCards = dpes
     .map(
-      (dpe) => `
+      (dpe) => {
+        // Construire l'adresse complète avec compléments
+        let fullAddress = dpe.adresse
+        if (dpe.complement_adresse_batiment) {
+          fullAddress += `, ${dpe.complement_adresse_batiment}`
+        }
+        if (dpe.complement_adresse_logement) {
+          fullAddress += ` - ${dpe.complement_adresse_logement}`
+        }
+
+        // Calculer le ratio surface si disponible
+        const ratioSurface = dpe.surface_immeuble && dpe.surface_immeuble > 0
+          ? ((dpe.surface / dpe.surface_immeuble) * 100).toFixed(1)
+          : null
+
+        return `
       <div style="background: #ffffff; border-radius: 12px; padding: 20px; margin-bottom: 16px; box-shadow: 0 4px 24px rgba(25, 28, 33, 0.06);">
+        <!-- En-tête avec adresse et étiquettes -->
         <table cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-bottom: 16px;">
           <tr>
             <td style="vertical-align: top;">
               <a href="${generateGoogleMapsUrl(dpe)}" style="text-decoration: none; color: inherit;" target="_blank">
-                <h3 style="margin: 0 0 4px; font-size: 16px; font-weight: 600; color: #00488d; text-decoration: underline;">${dpe.adresse}</h3>
-                <p style="margin: 0; font-size: 14px; color: #424752;">${dpe.code_postal} ${dpe.ville} 📍</p>
+                <h3 style="margin: 0 0 4px; font-size: 16px; font-weight: 600; color: #00488d; text-decoration: underline;">${fullAddress}</h3>
+                <p style="margin: 0; font-size: 14px; color: #424752;">${dpe.code_postal} ${dpe.ville} ${dpe.nom_residence ? `· ${dpe.nom_residence}` : ''}</p>
               </a>
             </td>
             <td style="vertical-align: top; text-align: right; padding-left: 24px; white-space: nowrap;">
@@ -59,20 +80,184 @@ function generateEmailHTML(alertName: string, dpes: DPEResult[]): string {
           </tr>
         </table>
 
+        <!-- Infos principales -->
+        <table cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 12px;">
+          <tr>
+            <td style="padding-right: 24px;">
+              <p style="margin: 0 0 2px; font-size: 11px; color: #727783; text-transform: uppercase; letter-spacing: 0.5px;">Surface</p>
+              <p style="margin: 0; font-size: 14px; color: #191c21; font-weight: 500;">${dpe.surface} m²</p>
+            </td>
+            <td style="padding-right: 24px;">
+              <p style="margin: 0 0 2px; font-size: 11px; color: #727783; text-transform: uppercase; letter-spacing: 0.5px;">Type</p>
+              <p style="margin: 0; font-size: 14px; color: #191c21; font-weight: 500;">${dpe.type_batiment}${dpe.typologie_logement ? ` · ${dpe.typologie_logement}` : ''}</p>
+            </td>
+            ${dpe.date_visite ? `
+            <td style="padding-right: 24px;">
+              <p style="margin: 0 0 2px; font-size: 11px; color: #727783; text-transform: uppercase; letter-spacing: 0.5px;">Visite</p>
+              <p style="margin: 0; font-size: 14px; color: #191c21; font-weight: 500;">${new Date(dpe.date_visite).toLocaleDateString('fr-FR')}</p>
+            </td>
+            ` : ''}
+            ${dpe.numero_etage !== null ? `
+            <td style="padding-right: 24px;">
+              <p style="margin: 0 0 2px; font-size: 11px; color: #727783; text-transform: uppercase; letter-spacing: 0.5px;">Etage</p>
+              <p style="margin: 0; font-size: 14px; color: #191c21; font-weight: 500;">${dpe.numero_etage === 0 ? 'RDC' : dpe.numero_etage}</p>
+            </td>
+            ` : ''}
+          </tr>
+        </table>
+
+        <!-- Infos bâtiment -->
+        ${(dpe.hauteur_sous_plafond || dpe.nombre_appartement || dpe.nombre_niveau_immeuble || ratioSurface) ? `
+        <table cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 12px;">
+          <tr>
+            ${dpe.hauteur_sous_plafond ? `
+            <td style="padding-right: 24px;">
+              <p style="margin: 0 0 2px; font-size: 11px; color: #727783; text-transform: uppercase; letter-spacing: 0.5px;">Hauteur plafond</p>
+              <p style="margin: 0; font-size: 14px; color: #191c21; font-weight: 500;">${dpe.hauteur_sous_plafond} m</p>
+            </td>
+            ` : ''}
+            ${dpe.nombre_appartement ? `
+            <td style="padding-right: 24px;">
+              <p style="margin: 0 0 2px; font-size: 11px; color: #727783; text-transform: uppercase; letter-spacing: 0.5px;">Nb appartements</p>
+              <p style="margin: 0; font-size: 14px; color: #191c21; font-weight: 500;">${dpe.nombre_appartement}</p>
+            </td>
+            ` : ''}
+            ${dpe.nombre_niveau_immeuble ? `
+            <td style="padding-right: 24px;">
+              <p style="margin: 0 0 2px; font-size: 11px; color: #727783; text-transform: uppercase; letter-spacing: 0.5px;">Nb niveaux</p>
+              <p style="margin: 0; font-size: 14px; color: #191c21; font-weight: 500;">${dpe.nombre_niveau_immeuble}</p>
+            </td>
+            ` : ''}
+            ${ratioSurface ? `
+            <td style="padding-right: 24px;">
+              <p style="margin: 0 0 2px; font-size: 11px; color: #727783; text-transform: uppercase; letter-spacing: 0.5px;">Ratio surface</p>
+              <p style="margin: 0; font-size: 14px; color: #191c21; font-weight: 500;">${ratioSurface}%</p>
+            </td>
+            ` : ''}
+          </tr>
+        </table>
+        ` : ''}
+
+        <!-- Chauffage / ECS -->
+        ${(dpe.type_installation_chauffage || dpe.type_energie || dpe.type_generateur_chauffage) ? `
+        <div style="background: #f8f9fc; border-radius: 8px; padding: 12px; margin-bottom: 12px;">
+          <p style="margin: 0 0 8px; font-size: 12px; color: #00488d; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Chauffage</p>
+          <table cellpadding="0" cellspacing="0" border="0">
+            <tr>
+              ${dpe.type_installation_chauffage ? `
+              <td style="padding-right: 24px;">
+                <p style="margin: 0 0 2px; font-size: 11px; color: #727783;">Installation</p>
+                <p style="margin: 0; font-size: 13px; color: #191c21;">${dpe.type_installation_chauffage}</p>
+              </td>
+              ` : ''}
+              ${dpe.type_energie ? `
+              <td style="padding-right: 24px;">
+                <p style="margin: 0 0 2px; font-size: 11px; color: #727783;">Energie</p>
+                <p style="margin: 0; font-size: 13px; color: #191c21;">${dpe.type_energie}</p>
+              </td>
+              ` : ''}
+              ${dpe.type_generateur_chauffage ? `
+              <td>
+                <p style="margin: 0 0 2px; font-size: 11px; color: #727783;">Générateur</p>
+                <p style="margin: 0; font-size: 13px; color: #191c21;">${dpe.type_generateur_chauffage}</p>
+              </td>
+              ` : ''}
+            </tr>
+          </table>
+        </div>
+        ` : ''}
+
+        ${(dpe.type_installation_ecs || dpe.description_installation_ecs || dpe.description_generateur_ecs || dpe.volume_stockage_ecs || dpe.nombre_logements_ecs) ? `
+        <div style="background: #f8f9fc; border-radius: 8px; padding: 12px; margin-bottom: 12px;">
+          <p style="margin: 0 0 8px; font-size: 12px; color: #00488d; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Eau chaude sanitaire</p>
+          <table cellpadding="0" cellspacing="0" border="0">
+            <tr>
+              ${dpe.type_installation_ecs ? `
+              <td style="padding-right: 24px;">
+                <p style="margin: 0 0 2px; font-size: 11px; color: #727783;">Installation</p>
+                <p style="margin: 0; font-size: 13px; color: #191c21;">${dpe.type_installation_ecs}</p>
+              </td>
+              ` : ''}
+              ${dpe.volume_stockage_ecs ? `
+              <td style="padding-right: 24px;">
+                <p style="margin: 0 0 2px; font-size: 11px; color: #727783;">Volume stockage</p>
+                <p style="margin: 0; font-size: 13px; color: #191c21;">${dpe.volume_stockage_ecs} L</p>
+              </td>
+              ` : ''}
+              ${dpe.nombre_logements_ecs ? `
+              <td>
+                <p style="margin: 0 0 2px; font-size: 11px; color: #727783;">Logements desservis</p>
+                <p style="margin: 0; font-size: 13px; color: #191c21;">${dpe.nombre_logements_ecs}</p>
+              </td>
+              ` : ''}
+            </tr>
+          </table>
+          ${dpe.description_installation_ecs ? `
+          <p style="margin: 8px 0 0; font-size: 12px; color: #424752;">${dpe.description_installation_ecs}</p>
+          ` : ''}
+          ${dpe.description_generateur_ecs ? `
+          <p style="margin: 4px 0 0; font-size: 12px; color: #424752;">Générateur: ${dpe.description_generateur_ecs}</p>
+          ` : ''}
+        </div>
+        ` : ''}
+
+        <!-- Confort / Isolation -->
+        ${(dpe.indicateur_confort_ete || dpe.logement_traversant !== null || dpe.isolation_toiture !== null || dpe.qualite_isolation_plancher || dpe.type_ventilation) ? `
+        <div style="background: #f0fdf4; border-radius: 8px; padding: 12px; margin-bottom: 12px;">
+          <p style="margin: 0 0 8px; font-size: 12px; color: #166534; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Confort & Isolation</p>
+          <table cellpadding="0" cellspacing="0" border="0">
+            <tr>
+              ${dpe.indicateur_confort_ete ? `
+              <td style="padding-right: 24px;">
+                <p style="margin: 0 0 2px; font-size: 11px; color: #727783;">Confort été</p>
+                <p style="margin: 0; font-size: 13px; color: #191c21;">${dpe.indicateur_confort_ete}</p>
+              </td>
+              ` : ''}
+              ${dpe.logement_traversant !== null ? `
+              <td style="padding-right: 24px;">
+                <p style="margin: 0 0 2px; font-size: 11px; color: #727783;">Traversant</p>
+                <p style="margin: 0; font-size: 13px; color: #191c21;">${formatBoolean(dpe.logement_traversant)}</p>
+              </td>
+              ` : ''}
+              ${dpe.isolation_toiture !== null ? `
+              <td style="padding-right: 24px;">
+                <p style="margin: 0 0 2px; font-size: 11px; color: #727783;">Isol. toiture</p>
+                <p style="margin: 0; font-size: 13px; color: #191c21;">${formatBoolean(dpe.isolation_toiture)}</p>
+              </td>
+              ` : ''}
+              ${dpe.qualite_isolation_plancher ? `
+              <td style="padding-right: 24px;">
+                <p style="margin: 0 0 2px; font-size: 11px; color: #727783;">Isol. plancher</p>
+                <p style="margin: 0; font-size: 13px; color: #191c21;">${dpe.qualite_isolation_plancher}</p>
+              </td>
+              ` : ''}
+            </tr>
+          </table>
+          ${dpe.type_ventilation ? `
+          <p style="margin: 8px 0 0; font-size: 12px; color: #424752;">Ventilation: ${dpe.type_ventilation}</p>
+          ` : ''}
+        </div>
+        ` : ''}
+
+        <!-- Consommation / Emissions -->
         <table cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 16px;">
           <tr>
-            <td style="padding-right: 32px;">
-              <p style="margin: 0 0 2px; font-size: 12px; color: #727783; text-transform: uppercase; letter-spacing: 0.5px;">Surface</p>
-              <p style="margin: 0; font-size: 15px; color: #191c21; font-weight: 500;">${dpe.surface} m²</p>
-            </td>
-            <td style="padding-right: 32px;">
-              <p style="margin: 0 0 2px; font-size: 12px; color: #727783; text-transform: uppercase; letter-spacing: 0.5px;">Type</p>
-              <p style="margin: 0; font-size: 15px; color: #191c21; font-weight: 500;">${dpe.type_batiment}</p>
-            </td>
             ${dpe.conso_energie ? `
+            <td style="padding-right: 24px;">
+              <p style="margin: 0 0 2px; font-size: 11px; color: #727783; text-transform: uppercase; letter-spacing: 0.5px;">Consommation</p>
+              <p style="margin: 0; font-size: 14px; color: #191c21; font-weight: 500;">${dpe.conso_energie} kWh/m²/an</p>
+            </td>
+            ` : ''}
+            ${dpe.emission_ges ? `
+            <td style="padding-right: 24px;">
+              <p style="margin: 0 0 2px; font-size: 11px; color: #727783; text-transform: uppercase; letter-spacing: 0.5px;">Emissions GES</p>
+              <p style="margin: 0; font-size: 14px; color: #191c21; font-weight: 500;">${dpe.emission_ges} kg CO2/m²/an</p>
+            </td>
+            ` : ''}
+            ${dpe.categorie_enr ? `
             <td>
-              <p style="margin: 0 0 2px; font-size: 12px; color: #727783; text-transform: uppercase; letter-spacing: 0.5px;">Conso.</p>
-              <p style="margin: 0; font-size: 15px; color: #191c21; font-weight: 500;">${dpe.conso_energie} kWh/m²/an</p>
+              <p style="margin: 0 0 2px; font-size: 11px; color: #727783; text-transform: uppercase; letter-spacing: 0.5px;">ENR</p>
+              <p style="margin: 0; font-size: 14px; color: #191c21; font-weight: 500;">${dpe.categorie_enr}</p>
             </td>
             ` : ''}
           </tr>
@@ -87,6 +272,7 @@ function generateEmailHTML(alertName: string, dpes: DPEResult[]): string {
         </p>
       </div>
     `
+      }
     )
     .join('')
 
@@ -141,7 +327,7 @@ function generateEmailHTML(alertName: string, dpes: DPEResult[]): string {
             Cet email a été envoyé automatiquement par DPE Monitor.
           </p>
           <p style="margin: 0; font-size: 12px; color: #c2c6d4;">
-            Prochain scan : mardi 8h00
+            Scan quotidien à 8h
           </p>
         </div>
 
