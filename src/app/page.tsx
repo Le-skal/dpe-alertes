@@ -409,7 +409,7 @@ export default function Home() {
               <div className="flex items-center justify-between mb-3">
                 <div>
                   <p className="label-md">Prochain scan</p>
-                  <p className="body-md text-[var(--on-surface)]">Mardi 8h00</p>
+                  <p className="body-md text-[var(--on-surface)]">Tous les jours à 8h</p>
                 </div>
                 <button
                   onClick={handleScanNow}
@@ -438,9 +438,9 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col lg:flex-row">
+    <div className="min-h-screen flex flex-col lg:flex-row lg:h-screen lg:overflow-hidden">
       {/* ==================== DESKTOP SIDEBAR ==================== */}
-      <aside className="hidden lg:flex w-72 bg-[var(--surface-container-lowest)] flex-col flex-shrink-0">
+      <aside className="hidden lg:flex w-72 bg-[var(--surface-container-lowest)] flex-col flex-shrink-0 h-screen overflow-y-auto">
         {/* Logo */}
         <div className="p-6 pb-8">
           <div className="flex items-center gap-3">
@@ -496,7 +496,7 @@ export default function Home() {
         <div className="p-4 space-y-3">
           <div className="p-4 bg-[var(--surface-container)] rounded-xl">
             <p className="label-md mb-2">Prochain scan auto</p>
-            <p className="body-md text-[var(--on-surface)]">Mardi 8h00</p>
+            <p className="body-md text-[var(--on-surface)]">Tous les jours à 8h</p>
           </div>
 
           <button
@@ -535,7 +535,7 @@ export default function Home() {
       </aside>
 
       {/* ==================== MAIN CONTENT ==================== */}
-      <main className="flex-1 flex flex-col min-h-screen lg:min-h-0">
+      <main className="flex-1 flex flex-col min-h-screen lg:min-h-0 lg:h-screen lg:overflow-y-auto">
         {/* Mobile Header (gradient) */}
         <header className="lg:hidden btn-primary-gradient text-white p-4 sticky top-0 z-10">
           <div className="flex justify-between items-center">

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServiceClient } from '@/lib/supabase'
-import { fetchNewDPEs, getLatestDPEDate } from '@/lib/ademe'
+import { fetchNewDPEs, getLatestDPEDate, getLatestADEMEUpdateDate } from '@/lib/ademe'
 import { sendAlertEmail } from '@/lib/resend'
 import { Alert } from '@/lib/types'
 
@@ -23,6 +23,39 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    // 1. Vérifier si la base ADEME a été mise à jour
+    const latestADEMEDate = await getLatestADEMEUpdateDate()
+
+    if (!latestADEMEDate) {
+      return NextResponse.json({
+        message: 'Impossible de récupérer la date ADEME',
+        skipped: true,
+        ...report,
+      })
+    }
+
+    // Récupérer l'état du dernier cron
+    const { data: cronState } = await supabase
+      .from('cron_state')
+      .select('last_ademe_date')
+      .eq('id', 1)
+      .single()
+
+    const lastProcessedDate = cronState?.last_ademe_date
+
+    // Si la date ADEME n'a pas changé, on skip
+    if (lastProcessedDate && lastProcessedDate === latestADEMEDate) {
+      console.log(`[CRON] Base ADEME non mise à jour (${latestADEMEDate}), skip`)
+      return NextResponse.json({
+        message: 'Base ADEME non mise à jour, aucun email envoyé',
+        skipped: true,
+        last_ademe_date: latestADEMEDate,
+        ...report,
+      })
+    }
+
+    console.log(`[CRON] Nouvelle mise à jour ADEME détectée: ${latestADEMEDate} (précédent: ${lastProcessedDate || 'aucun'})`)
+
     // Récupérer toutes les alertes actives
     const { data: alerts, error } = await supabase
       .from('alerts')
@@ -80,8 +113,18 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Mettre à jour l'état du cron avec la nouvelle date ADEME
+    await supabase
+      .from('cron_state')
+      .upsert({
+        id: 1,
+        last_ademe_date: latestADEMEDate,
+        last_run_at: new Date().toISOString(),
+      })
+
     return NextResponse.json({
       message: 'Cron exécuté avec succès',
+      last_ademe_date: latestADEMEDate,
       ...report,
     })
   } catch (error) {
